@@ -1,0 +1,132 @@
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+body {
+    margin: 0;
+    background: white;
+    color: black;
+    font: 16px Arial, sans-serif;
+    line-height: 1.5;
+}
+
+main {
+    max-width: 1000px;
+    margin: 32px auto;
+    padding: 0 20px;
+}
+
+h1 {
+    font-size: 28px;
+}
+
+h2, h3 {
+    font-size: 18px;
+}
+
+button, input, select {
+    font: inherit;
+    padding: 10px 12px;
+    border: 1px solid black;
+    border-radius: 0;
+}
+
+button {
+    background: black;
+    color: white;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+input, select {
+    background: white;
+    color: black;
+    min-width: 0;
+}
+
+input::placeholder {
+    color: #444;
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid black;
+    outline-offset: 3px;
+}
+
+#status {
+    border-top: 1px solid black;
+    padding-top: 16px;
+}
+
+#actions {
+    max-width: 480px;
+    display: grid;
+    gap: 12px;
+    margin: 24px 0;
+}
+
+.row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.row input {
+    flex: 1;
+    min-width: 180px;
+}
+
+.row h2 {
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+
+.videos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+video {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    display: block;
+    background: black;
+    object-fit: contain;
+}
+
+#local-video {
+    transform: scaleX(-1);
+}
+
+#messages {
+    padding-left: 24px;
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+}
+
+.development {
+    margin-top: 32px;
+    border-top: 1px solid black;
+    padding-top: 16px;
+}
+
+@media (max-width: 640px) {
+    main {
+        margin: 20px auto;
+    }
+
+    .videos {
+        grid-template-columns: 1fr;
+    }
+}

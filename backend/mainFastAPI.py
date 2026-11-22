@@ -1,9 +1,11 @@
 import asyncio
+from pathlib import Path
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
@@ -30,6 +32,7 @@ async def stop_server():
 
 # Обычные функции запуска и завершения, без дополнительных декораторов.
 app = FastAPI(on_startup=[start_server], on_shutdown=[stop_server])
+app.mount('/static', StaticFiles(directory=Path(__file__).with_name('static')), name='static')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -121,6 +124,5 @@ async def room_socket(websocket: WebSocket, room_id: str, role: str = ""):
 
 @app.get('/', include_in_schema=False)
 def connection_page():
-    from pathlib import Path
     from fastapi.responses import FileResponse
-    return FileResponse(Path(__file__).with_name('index.html'))
+    return FileResponse(Path(__file__).with_name('index.html'), headers={'Cache-Control': 'no-store'})

@@ -1,74 +1,69 @@
 <!doctype html>
 <html lang="ru">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RSL — комната</title>
-<style>
-[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:#101827;color:#eef3ff;font:17px system-ui;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:100%;max-width:620px}h1{font-size:36px;margin:0 0 28px}button,input{font:inherit;padding:15px;border-radius:12px;border:1px solid #465470}button{background:#83baff;color:#101827;cursor:pointer}button:disabled{opacity:.5;cursor:wait}input{background:#1c293f;color:white;width:100%;margin:12px 0}section{background:#19253a;padding:24px;border-radius:20px}#status{line-height:1.6;color:#b9cce8}#actions{display:grid;gap:12px}a{color:#a9d0ff;overflow-wrap:anywhere}#messages{padding-left:22px;max-height:230px;overflow:auto}form{display:flex;gap:8px;align-items:center}form input{min-width:0}label{display:block}small{color:#b9cce8}
-</style>
-<main><h1>Подключитесь друг к другу</h1><section>
-<p id="status" role="status">Создайте комнату или вставьте приглашение друга.</p>
-<div id="actions"><button id="create">Создать комнату</button>
-<label for="room">Ссылка приглашения или номер комнаты</label><input id="room" autocomplete="off" placeholder="Вставьте ссылку друга">
-<button id="join">Подключиться к комнате</button></div>
-<div id="inside" hidden><p>Приглашение другу</p><a id="invite"></a><p><small>Скопируйте ссылку и отправьте её другу.</small></p>
-<ul id="messages" aria-live="polite"></ul><form id="chat"><input id="text" aria-label="Сообщение" placeholder="Сообщение другу" required maxlength="4000"><button>Отправить</button></form></div>
-</section></main>
-<script>
-let socket;
-const status = document.querySelector('#status');
-const roomInput = document.querySelector('#room');
-const createButton = document.querySelector('#create');
-const joinButton = document.querySelector('#join');
-const initialRoom = new URLSearchParams(location.search).get('room');
-if(initialRoom) roomInput.value = initialRoom;
-function busy(value){createButton.disabled=value;joinButton.disabled=value;}
-function message(text){const item=document.createElement('li');item.textContent=text;document.querySelector('#messages').append(item);}
-async function enter(room,role){
- const response=await fetch('/rooms/'+encodeURIComponent(room));
- if(!response.ok) throw new Error('Комната не найдена. Попросите друга создать новую.');
- const info=await response.json();
- if(info.participants>=2) throw new Error('В комнате уже два участника.');
- status.textContent='Подключаемся…';
- socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws/'+encodeURIComponent(room)+'?role='+role);
- let joined=false;
- socket.onmessage=function(event){
-  const data=JSON.parse(event.data);
-  if(data.type==='joined'){
-   joined=true;busy(false);
-   document.querySelector('#actions').hidden=true;
-   document.querySelector('#inside').hidden=false;
-   const invite=new URL(location.origin);invite.searchParams.set('room',room);
-   const link=document.querySelector('#invite');link.href=invite;link.textContent=invite;
-   status.textContent=data.participants===2?'Вы оба в комнате. Можно отправлять сообщения.':'Вы в комнате. Ожидаем друга…';
-  }
-  if(data.type==='peer_joined')status.textContent='Друг подключился. Можно отправлять сообщения.';
-  if(data.type==='peer_left')status.textContent='Друг вышел. Ожидаем подключения…';
-  if(data.type==='text')message('Друг: '+data.text);
-  if(data.type==='error')status.textContent=data.message;
- };
- socket.onclose=function(){
-  busy(false);document.querySelector('#actions').hidden=false;document.querySelector('#inside').hidden=true;
-  status.textContent=joined?'Соединение закрыто. Подключитесь снова или создайте комнату.':'Вход отклонён. Возможно, это место уже занято или комната удалена.';
- };
- socket.onerror=function(){status.textContent='Не удалось связаться с сервером.';};
-}
-createButton.onclick=async function(){
- busy(true);
- try{const response=await fetch('/rooms',{method:'POST'});if(!response.ok)throw new Error('Не удалось создать комнату.');
- const data=await response.json();roomInput.value=data.room_id;await enter(data.room_id,'sign');}
- catch(error){status.textContent=error.message;busy(false);}
-};
-joinButton.onclick=async function(){
- busy(true);
- try{let room=roomInput.value.trim();if(room.includes('://'))room=new URL(room).searchParams.get('room');
- if(!room)throw new Error('Вставьте ссылку приглашения или номер комнаты.');
- await enter(room,'speech');}catch(error){status.textContent=error.message;busy(false);}
-};
-document.querySelector('#chat').onsubmit=function(event){
- event.preventDefault();const input=document.querySelector('#text');const text=input.value.trim();
- if(!text)return;
- if(!socket||socket.readyState!==WebSocket.OPEN){status.textContent='Соединение закрыто.';return;}
- socket.send(JSON.stringify({type:'text',text}));message('Вы: '+text);input.value='';
-};
-</script>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RSL Translator — прототип</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/room.js" defer></script>
+</head>
+<body>
+<main>
+    <h1>RSL Translator</h1>
+    <p>Прототип общения на русском жестовом языке и устной речи.</p>
+    <p id="status" role="status">Создайте комнату или откройте приглашение друга.</p>
+
+    <section id="actions" aria-label="Вход в комнату">
+        <label for="role">Мой режим общения</label>
+        <select id="role">
+            <option value="sign">Жестовая речь</option>
+            <option value="speech">Устная речь</option>
+        </select>
+        <button id="create" type="button">Создать комнату</button>
+        <label for="room">Приглашение или номер комнаты</label>
+        <input id="room" autocomplete="off" placeholder="Вставьте приглашение друга">
+        <button id="join" type="button">Подключиться к комнате</button>
+    </section>
+
+    <section id="inside" hidden aria-label="Комната">
+        <div class="row">
+            <h2>Комната <span id="room-name"></span></h2>
+            <button id="leave" type="button">Выйти</button>
+        </div>
+        <label for="invite">Приглашение другу</label>
+        <div class="row">
+            <input id="invite" readonly>
+            <button id="copy" type="button">Скопировать</button>
+        </div>
+        <p id="copy-status" role="status"></p>
+        <div class="videos">
+            <section>
+                <h3>Вы</h3>
+                <video id="local-video" autoplay muted playsinline></video>
+                <p id="local-status">Камера и микрофон выключены.</p>
+            </section>
+            <section>
+                <h3>Собеседник</h3>
+                <video id="remote-video" autoplay playsinline controls></video>
+                <p id="remote-status">Ожидаем собеседника.</p>
+            </section>
+        </div>
+        <div class="row media-controls">
+            <button id="media" type="button">Включить камеру и микрофон</button>
+            <button id="camera" type="button" hidden>Выключить камеру</button>
+            <button id="microphone" type="button" hidden>Выключить микрофон</button>
+        </div>
+        <p id="media-status" role="status">Камера и микрофон включаются по вашему нажатию.</p>
+        <h3>Сообщения</h3>
+        <p id="empty-chat">Сообщений пока нет.</p>
+        <ul id="messages" aria-live="polite"></ul>
+        <form id="chat" class="row">
+            <input id="text" aria-label="Сообщение" placeholder="Напишите сообщение" required maxlength="4000">
+            <button type="submit">Отправить</button>
+        </form>
+    </section>
+
+    <p class="development">Перевод РЖЯ ↔ русский и английский, распознавание речи и словарь жестов находятся в разработке.</p>
+</main>
+</body>
 </html>

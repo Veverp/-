@@ -39,7 +39,11 @@ async def handle_connection(websocket, room_id, role):
             await send_message(peer, {"type": "peer_joined", "role": role})
 
         while True:
-            event = await websocket.receive()
+            try:
+                event = await asyncio.wait_for(websocket.receive(), timeout=60)
+            except TimeoutError:
+                await websocket.close(code=1001, reason="Нет связи со страницей")
+                break
             if event["type"] == "websocket.disconnect":
                 break
 
@@ -65,6 +69,9 @@ async def handle_connection(websocket, room_id, role):
                 continue
 
             message_type = message.get("type")
+            if message_type == "ping":
+                await send_message(participant, {"type": "pong"})
+                continue
             if message_type == "text" and isinstance(message.get("text"), str):
                 outgoing = {"type": "text", "text": message["text"]}
             elif message_type in ("offer", "answer", "ice_candidate") and isinstance(message.get("data"), dict):

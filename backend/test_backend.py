@@ -14,6 +14,8 @@ with TestClient(app) as client:
 
     with client.websocket_connect(f"/ws/{room_id}?role=sign") as first:
         assert first.receive_json()["type"] == "joined"
+        first.send_json({"type": "ping"})
+        assert first.receive_json() == {"type": "pong"}
 
         with client.websocket_connect(f"/ws/{room_id}?role=speech") as second:
             assert second.receive_json()["participants"] == 2

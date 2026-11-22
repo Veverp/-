@@ -67,7 +67,6 @@ if ($previousAddress) {
             }
         } catch {}
     }
-    Remove-Item -LiteralPath $addressPath
 }
 # SSH уже входит в Windows. Данные соединения храним рядом с проектом.
 $stateDirectory = Join-Path $PSScriptRoot '.public-access'
