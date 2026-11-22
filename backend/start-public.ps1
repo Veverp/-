@@ -1,11 +1,26 @@
 ﻿$ErrorActionPreference = 'Stop'
-
-# Сначала должен быть запущен FastAPI на порту 8000.
-$response = Invoke-WebRequest 'http://127.0.0.1:8000/hello' -UseBasicParsing -TimeoutSec 8
-if ($response.Content.Trim() -ne '"It works!"') {
-    throw 'На порту 8000 запущено другое приложение.'
+$stateDirectory = Join-Path $PSScriptRoot '.public-access'
+New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+try {
+    $response = Invoke-WebRequest 'http://127.0.0.1:8000/hello' -UseBasicParsing -TimeoutSec 3
+} catch {
+    $python = 'python'
+    foreach ($candidate in @((Join-Path $PSScriptRoot '.venv/Scripts/python.exe'), (Join-Path (Split-Path $PSScriptRoot) '.venv/Scripts/python.exe'))) {
+        if (Test-Path $candidate) { $python = $candidate; break }
+    }
+    Start-Process $python -ArgumentList @('-m','uvicorn','mainFastAPI:app','--host','127.0.0.1','--port','8000') -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stateDirectory 'server.log') -RedirectStandardError (Join-Path $stateDirectory 'server-error.log') | Out-Null
+    $ready = $false
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        Start-Sleep -Seconds 1
+        try {
+            $response = Invoke-WebRequest 'http://127.0.0.1:8000/hello' -UseBasicParsing -TimeoutSec 2
+            $ready = $true
+            break
+        } catch {}
+    }
+    if (-not $ready) { throw 'Сервер не запустился. Подробности в .public-access/server-error.log' }
 }
-
+if ($response.Content.Trim() -ne '"It works!"') { throw 'На порту 8000 другое приложение.' }
 # SSH уже входит в Windows. Данные соединения храним рядом с проектом.
 $stateDirectory = Join-Path $PSScriptRoot '.public-access'
 New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
@@ -24,12 +39,23 @@ if ($fingerprint -notmatch 'SHA256:pG6qrBxubYfWa1Zadu/V0NUgjEDiBds/7e2xzte/QNM')
 }
 
 $knownHosts = $knownHosts.Replace('\', '/')
-Write-Host 'Публичная ссылка https://... появится ниже. Передай её другу.'
-Write-Host 'Оставь это окно и сервер открытыми. Ctrl+C останавливает туннель.'
-
+# Показываем только адрес страницы. Служебный вывод остаётся в файле.
+$ErrorActionPreference = 'Continue'
 & ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityFile=none `
     -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$knownHosts" `
     -o ServerAliveInterval=20 -o ServerAliveCountMax=3 `
-    -o ExitOnForwardFailure=yes -R 80:127.0.0.1:8000 nokey@localhost.run
-
-if ($LASTEXITCODE -ne 0) { throw 'Туннель отключился. Запусти команду ещё раз.' }
+    -o ExitOnForwardFailure=yes -R 80:127.0.0.1:8000 nokey@localhost.run -- --output json 2> (Join-Path $stateDirectory 'tunnel-error.log') |
+    ForEach-Object {
+        $line = [string]$_
+        Add-Content (Join-Path $stateDirectory 'tunnel.log') $line
+        $match = [regex]::Match($line, 'https://[a-zA-Z0-9.-]+\.(?:lhr\.life|localhost\.run)')
+        if ($match.Success -and $match.Value -notmatch 'https://(?:admin\.)?localhost.run') {
+            if ($match.Value -ne $lastAddress) {
+                $lastAddress = $match.Value
+                Set-Content (Join-Path $stateDirectory 'address.txt') $lastAddress
+                Write-Output $lastAddress
+                if ($env:RSL_NO_BROWSER -ne '1') { Start-Process $lastAddress }
+            }
+        }
+    }
+if ($LASTEXITCODE -ne 0) { throw 'Соединение прервано. Подробности в .public-access/tunnel-error.log' }

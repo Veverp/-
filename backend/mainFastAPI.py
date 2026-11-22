@@ -117,3 +117,10 @@ def process_image(data):
 @app.websocket("/ws/{room_id}")
 async def room_socket(websocket: WebSocket, room_id: str, role: str = ""):
     await handle_connection(websocket, room_id, role)
+
+
+@app.get('/', include_in_schema=False)
+def connection_page():
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).with_name('index.html'))
